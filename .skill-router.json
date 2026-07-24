@@ -1,0 +1,16 @@
+{
+  "schemaVersion" : 1,
+  "skills" : {
+    "baoyu-design" : {
+      "targets" : [
+        "codex"
+      ]
+    }
+  },
+  "targets" : {
+    "codex" : {
+      "path" : ".agents/skills",
+      "type" : "codex"
+    }
+  }
+}

@@ -48,6 +48,11 @@ let package = Package(
             name: "SkillRouterCLITests",
             dependencies: ["SkillRouterCore", "SkillRouterCLIKit"],
             path: "Tests/SkillRouterCLITests"
+        ),
+        .testTarget(
+            name: "SkillRouterAppTests",
+            dependencies: ["SkillRouterApp", "SkillRouterCore"],
+            path: "Tests/SkillRouterAppTests"
         )
     ]
 )

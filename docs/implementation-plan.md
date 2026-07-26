@@ -322,13 +322,13 @@ skill_router/
 
 交付：
 
-- Skills、项目、更新、系统 Skill、设置五个一级页面；
+- 技能、项目、设置三个一级页面；更新与系统 Skill 功能归入设置；
 - 本地/Git 导入流程；
-- 列表—详情和反向引用；
+- 统一页面组件、可搜索列表、详情弹窗和反向引用；
 - 项目加入、目标确认、协调和卸载；
 - 更新确认、删除确认、导入/导出；
 - Finder 打开入口；
-- 应用内更新徽标。
+- 跟随系统、浅色和深色外观。
 
 测试：
 
@@ -458,6 +458,6 @@ SKILL_ROUTER_HOME=/private/tmp/<unique-test-root>
 - 本地启动入口为仓库根目录的 `./scripts/run-local.sh`。
 - 中央库、项目清单、双层绝对软链接、公开 Git 更新、系统 Skill 和 `.skillrouter` 制品流程均已接入同一核心库。
 - 项目书签可尽量恢复同目录移动或改名；自定义目标不会再静默回退到 Codex。
-- App 界面采用 macOS 系统控件、系统字体和 SF Symbols，保留五个冻结一级页面，并显示加载、错误和部分完成状态。
+- App 界面采用 macOS 系统字体和 SF Symbols，以统一 SwiftUI 组件实现技能、项目、设置三级导航，并显示加载、错误和部分完成状态。
 - 自动验收只证明 Skill 文件系统目录和链接结构正确；没有启动 Codex 或 Claude Code，也不声称 Agent 已真实发现或加载 Skill。
 - Developer ID 签名、公证、独立 `.app` 发布制品和 GitHub Release 属于阶段 10，未在本地首版中实施。

@@ -1,71 +1,251 @@
 import AppKit
 import Foundation
+import Observation
 import SkillRouterCore
+import SwiftUI
 
-struct ProjectSnapshot: Sendable {
-    let manifest: ProjectManifest
-    let reconciliation: ReconciliationReport
+enum AppRoute: String, CaseIterable, Identifiable {
+    case skills = "技能"
+    case projects = "项目"
+    case settings = "设置"
+
+    var id: Self { self }
+
+    var systemImage: String {
+        switch self {
+        case .skills: "square.stack.3d.up"
+        case .projects: "rectangle.stack"
+        case .settings: "gearshape"
+        }
+    }
+}
+
+enum AppearanceMode: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: Self { self }
+    var label: String {
+        switch self {
+        case .system: "系统"
+        case .light: "浅色"
+        case .dark: "深色"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
+enum SkillSourceFilter: String, CaseIterable, Identifiable {
+    case all
+    case local
+    case git
+
+    var id: Self { self }
+    var label: String {
+        switch self {
+        case .all: "全部"
+        case .local: "本地"
+        case .git: "Git"
+        }
+    }
+}
+
+enum ModalRoute: Identifiable {
+    case skillDetail(SkillName)
+    case projectDetail(URL)
+    case localImport(URL)
+    case gitImport
+    case artifactImport(URL)
+    case projectRegistration(URL)
+    case projectInstall(URL, preselected: SkillName?)
+    case skillProjectPicker(SkillName)
+
+    var id: String {
+        switch self {
+        case .skillDetail(let name): "skill-\(name.rawValue)"
+        case .projectDetail(let url): "project-\(url.path)"
+        case .localImport(let url): "local-\(url.path)"
+        case .gitImport: "git-import"
+        case .artifactImport(let url): "artifact-\(url.path)"
+        case .projectRegistration(let url): "register-\(url.path)"
+        case .projectInstall(let url, let name): "install-\(url.path)-\(name?.rawValue ?? "all")"
+        case .skillProjectPicker(let name): "project-picker-\(name.rawValue)"
+        }
+    }
 }
 
 @MainActor
-final class AppModel: ObservableObject {
-    @Published private(set) var state = RouterState()
-    @Published private(set) var updateChecks: [UpdateCheckResult] = []
-    @Published private(set) var bootstrapResult: SystemSkillInstallResult?
-    @Published var isBusy = false
-    @Published var notice: String?
-    @Published var errorMessage: String?
+@Observable
+final class SkillsStore {
+    var searchText = ""
+    var sourceFilter: SkillSourceFilter = .all
+    private(set) var items: [SkillListItem] = []
+
+    var filteredItems: [SkillListItem] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return items.filter { item in
+            let matchesSource = sourceFilter == .all
+                || (sourceFilter == .local && item.record.origin == .local)
+                || (sourceFilter == .git && item.record.origin == .git)
+            guard matchesSource else { return false }
+            guard !query.isEmpty else { return true }
+            return [
+                item.name.rawValue,
+                item.description,
+                item.record.suiteName?.rawValue ?? "",
+                item.sourceLabel
+            ].joined(separator: " ").lowercased().contains(query)
+        }
+    }
+
+    func apply(_ items: [SkillListItem]) {
+        self.items = items.sorted { $0.name < $1.name }
+    }
+
+    func item(named name: SkillName) -> SkillListItem? {
+        items.first { $0.name == name }
+    }
+}
+
+@MainActor
+@Observable
+final class ProjectsStore {
+    var searchText = ""
+    private(set) var items: [ProjectListItem] = []
+
+    var filteredItems: [ProjectListItem] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return items }
+        return items.filter { "\($0.name) \($0.path)".lowercased().contains(query) }
+    }
+
+    var conflictCount: Int { items.reduce(0) { $0 + $1.conflictCount } }
+
+    func apply(_ items: [ProjectListItem]) {
+        self.items = items.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+    }
+}
+
+@MainActor
+@Observable
+final class SettingsStore {
+    static let appearanceKey = "SkillRouter.appearance"
+
+    var appearance: AppearanceMode {
+        didSet { defaults.set(appearance.rawValue, forKey: Self.appearanceKey) }
+    }
+    private(set) var gitSources: [GitSourceRecord] = []
+    private(set) var updateChecks: [UpdateCheckResult] = []
+    private(set) var systemSkill = SystemSkillSettings()
+    private(set) var bootstrapResult: SystemSkillInstallResult?
+
+    @ObservationIgnored private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.appearance = defaults.string(forKey: Self.appearanceKey)
+            .flatMap(AppearanceMode.init(rawValue:)) ?? .system
+    }
+
+    var availableUpdateCount: Int {
+        gitSources.filter { $0.availableCommit != nil }.count
+    }
+
+    func apply(state: RouterState, updateChecks: [UpdateCheckResult]? = nil) {
+        gitSources = state.gitSources
+        systemSkill = state.systemSkill
+        if let updateChecks { self.updateChecks = updateChecks }
+    }
+
+    func setBootstrapResult(_ result: SystemSkillInstallResult) {
+        bootstrapResult = result
+    }
+}
+
+@MainActor
+@Observable
+final class AppStore {
+    private(set) var state = RouterState()
+    let skills: SkillsStore
+    let projects: ProjectsStore
+    let settings: SettingsStore
+    var route: AppRoute = .skills
+    var modal: ModalRoute?
+    var isBusy = false
+    var notice: String?
+    var errorMessage: String?
 
     let paths: RouterPaths
     let homeDirectory: URL
-    private let environment: [String: String]
+    @ObservationIgnored private let service: any SkillRouterAppServicing
 
-    init(
+    convenience init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        homeDirectory: URL? = nil
+        homeDirectory: URL? = nil,
+        defaults: UserDefaults = .standard
     ) {
-        self.environment = environment
         let resolvedHome = homeDirectory
             ?? environment["SKILL_ROUTER_USER_HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? FileManager.default.homeDirectoryForCurrentUser
-        self.homeDirectory = resolvedHome
-        self.paths = RouterPaths.production(environment: environment, homeDirectory: resolvedHome)
+        let paths = RouterPaths.production(environment: environment, homeDirectory: resolvedHome)
+        self.init(
+            service: LiveAppService(paths: paths, environment: environment, homeDirectory: resolvedHome),
+            paths: paths,
+            homeDirectory: resolvedHome,
+            defaults: defaults
+        )
+    }
+
+    init(
+        service: any SkillRouterAppServicing,
+        paths: RouterPaths,
+        homeDirectory: URL,
+        defaults: UserDefaults = .standard
+    ) {
+        self.service = service
+        self.paths = paths
+        self.homeDirectory = homeDirectory
+        self.skills = SkillsStore()
+        self.projects = ProjectsStore()
+        self.settings = SettingsStore(defaults: defaults)
     }
 
     func bootstrap(appExecutable: URL? = Bundle.main.executableURL) async {
-        await run("初始化完成") { [environment, homeDirectory] in
-            let result = try BootstrapService().bootstrap(
-                environment: environment,
-                homeDirectory: homeDirectory,
-                appExecutable: appExecutable
-            )
-            return result
-        } assign: { result in
-            self.bootstrapResult = result
+        isBusy = true
+        errorMessage = nil
+        do {
+            settings.setBootstrapResult(try await service.bootstrap(appExecutable: appExecutable))
+        } catch {
+            errorMessage = error.localizedDescription
         }
-        await reconcileRegisteredProjects()
+        isBusy = false
         await refresh(showProgress: false)
     }
 
     func refresh(showProgress: Bool = true) async {
-        let paths = paths
         if showProgress { isBusy = true }
         defer { if showProgress { isBusy = false } }
         do {
-            state = try await Task.detached {
-                let store = RouterStateStore(paths: paths)
-                _ = try ProjectService(store: store).registeredProjects()
-                return try store.load()
-            }.value
+            let snapshot = try await service.loadDashboard()
+            state = snapshot.state
+            skills.apply(snapshot.skills)
+            projects.apply(snapshot.projects)
+            settings.apply(state: snapshot.state)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     func discoverLocal(_ source: URL) async throws -> [SkillCandidate] {
-        try await Task.detached {
-            try SkillDiscovery().discover(in: source)
-        }.value
+        try await service.discoverLocal(source)
     }
 
     func importLocal(
@@ -74,29 +254,22 @@ final class AppModel: ObservableObject {
         suiteName: String?,
         conflicts: [SkillName: SkillConflictResolution]
     ) async -> Bool {
-        let paths = paths
-        return await runBool {
-            let suite = try suiteName.map(SuiteName.init(rawValue:))
-            return try LocalImportService(store: RouterStateStore(paths: paths)).importSkills(
-                from: source,
-                selectedNames: selected,
-                suiteName: suite,
-                conflictResolutions: conflicts
+        await perform {
+            try await service.importLocal(
+                source: source,
+                selected: selected,
+                suiteName: suiteName,
+                conflicts: conflicts
             )
-        } message: { result in
-            "已导入 \(result.imported.count) 个 Skill"
         }
     }
 
     func prepareGit(_ remoteURL: String) async throws -> PreparedGitImport {
-        let paths = paths
-        return try await Task.detached {
-            try GitImportService(store: RouterStateStore(paths: paths)).prepare(remoteURL: remoteURL)
-        }.value
+        try await service.prepareGit(remoteURL)
     }
 
     func cancelGit(_ prepared: PreparedGitImport) {
-        GitImportService(store: RouterStateStore(paths: paths)).cancel(prepared)
+        service.cancelGit(prepared)
     }
 
     func commitGit(
@@ -105,70 +278,33 @@ final class AppModel: ObservableObject {
         suiteName: String?,
         conflicts: [SkillName: SkillConflictResolution]
     ) async throws {
-        let paths = paths
         isBusy = true
         errorMessage = nil
         defer { isBusy = false }
-        let result = try await Task.detached {
-            let suite = try suiteName.map(SuiteName.init(rawValue:))
-            return try GitImportService(store: RouterStateStore(paths: paths)).commit(
-                prepared,
-                selectedNames: selected,
-                suiteName: suite,
-                conflictResolutions: conflicts
-            )
-        }.value
-        showTransientNotice("已从 Git 导入 \(result.imported.count) 个 Skill")
+        let message = try await service.commitGit(
+            prepared,
+            selected: selected,
+            suiteName: suiteName,
+            conflicts: conflicts
+        )
+        showTransientNotice(message)
         await refresh(showProgress: false)
     }
 
     func deleteSkill(_ name: SkillName) async {
-        let paths = paths
-        _ = await runBool {
-            try CentralLibraryService(store: RouterStateStore(paths: paths)).delete(skillNames: [name])
-        } message: { result in
-            if result.projectFailures.isEmpty {
-                return "已删除 \(result.deleted.count) 个 Skill"
-            }
-            return "中央 Skill 已删除，\(result.projectFailures.count) 个项目需要手动协调"
-        }
+        _ = await perform { try await service.deleteSkill(name) }
     }
 
     func renameSuite(from oldName: SuiteName, to newNameText: String) async -> Bool {
-        let paths = paths
-        return await runBool {
-            let newName = try SuiteName(rawValue: newNameText)
-            return try CentralLibraryService(store: RouterStateStore(paths: paths))
-                .renameSuite(from: oldName, to: newName)
-        } message: { result in
-            "已将套件 \(result.oldName.rawValue) 重命名为 \(result.newName.rawValue)"
-        }
+        await perform { try await service.renameSuite(from: oldName, to: newNameText) }
     }
 
-    func registerProject(
-        _ project: URL,
-        targets: [(String, DistributionTargetRecord)]
-    ) async -> Bool {
-        let paths = paths
-        return await runBool {
-            let service = ProjectService(store: RouterStateStore(paths: paths))
-            if targets.isEmpty {
-                _ = try service.register(project: project)
-            } else {
-                for (id, target) in targets {
-                    _ = try service.register(project: project, targetID: id, target: target)
-                }
-            }
-            return project.path
-        } message: { "已注册项目：\($0)" }
+    func registerProject(_ project: URL, targets: [(String, DistributionTargetRecord)]) async -> Bool {
+        await perform { try await service.registerProject(project, targets: targets) }
     }
 
     func unregisterProject(_ project: URL) async {
-        let paths = paths
-        _ = await runBool {
-            try ProjectService(store: RouterStateStore(paths: paths)).unregister(project: project)
-            return project.path
-        } message: { "已取消注册：\($0)；项目清单和链接保持不变" }
+        _ = await perform { try await service.unregisterProject(project) }
     }
 
     func install(
@@ -176,127 +312,56 @@ final class AppModel: ObservableObject {
         project: URL,
         targets: [(String, DistributionTargetRecord)]
     ) async -> Bool {
-        let paths = paths
-        return await runBool {
-            let service = ProjectService(store: RouterStateStore(paths: paths))
-            var partial = false
-            for (id, target) in targets {
-                partial = try service.install(
-                    skillNames: names,
-                    project: project,
-                    targetID: id,
-                    target: target
-                ).isPartial || partial
-            }
-            return partial
-        } message: { partial in
-            partial ? "安装请求部分完成，请查看项目冲突" : "项目 Skill 已协调"
-        }
+        await perform { try await service.install(names: names, project: project, targets: targets) }
     }
 
     func uninstallAll(project: URL) async {
-        let paths = paths
-        _ = await runBool {
-            try ProjectService(store: RouterStateStore(paths: paths)).uninstallAll(project: project)
-        } message: { _ in "已卸载项目中的全部受管 Skill，项目和目标仍保留" }
+        _ = await perform { try await service.uninstallAll(project: project) }
     }
 
     func uninstall(name: SkillName, project: URL, targetID: String? = nil) async -> Bool {
-        let paths = paths
-        return await runBool {
-            try ProjectService(store: RouterStateStore(paths: paths)).uninstall(
-                skillNames: [name],
-                project: project,
-                targetID: targetID
-            )
-        } message: { _ in
-            if let targetID { return "已从目标 \(targetID) 卸载 \(name.rawValue)" }
-            return "已从项目卸载 \(name.rawValue)"
-        }
+        await perform { try await service.uninstall(name: name, project: project, targetID: targetID) }
     }
 
     func gitIgnoreEntries(project: URL) async throws -> [String] {
-        let paths = paths
-        return try await Task.detached {
-            try ProjectService(store: RouterStateStore(paths: paths)).gitIgnoreEntries(project: project)
-        }.value
+        try await service.gitIgnoreEntries(project: project)
     }
 
     func addGitIgnoreEntries(project: URL) async -> Bool {
-        let paths = paths
-        return await runBool {
-            try ProjectService(store: RouterStateStore(paths: paths)).addGitIgnoreEntries(project: project)
-        } message: { added in
-            added.isEmpty ? ".gitignore 已包含全部建议" : "已向 .gitignore 添加 \(added.count) 条忽略项"
-        }
+        await perform { try await service.addGitIgnoreEntries(project: project) }
     }
 
     func checkUpdates(force: Bool = true, showNotice: Bool = true) async {
-        let paths = paths
         if showNotice { isBusy = true }
         defer { if showNotice { isBusy = false } }
         do {
-            let checks = try await Task.detached {
-                try GitUpdateService(store: RouterStateStore(paths: paths)).checkForUpdates(force: force)
-            }.value
-            updateChecks = checks
+            let checks = try await service.checkUpdates(force: force)
+            settings.apply(state: state, updateChecks: checks)
             if showNotice { showTransientNotice("更新检查完成") }
+            await refresh(showProgress: false)
         } catch {
             if showNotice { errorMessage = error.localizedDescription }
         }
-        await refresh(showProgress: false)
     }
 
     func applyUpdate(sourceID: UUID) async {
-        let paths = paths
-        _ = await runBool {
-            try GitUpdateService(store: RouterStateStore(paths: paths)).applyUpdate(sourceID: sourceID)
-        } message: { result in
-            var message = "已更新 \(result.updated.count) 个 Skill"
-            if !result.removed.isEmpty { message += "，删除 \(result.removed.count) 个上游已移除 Skill" }
-            if !result.discovered.isEmpty { message += "，发现 \(result.discovered.count) 个新候选" }
-            if !result.projectFailures.isEmpty { message += "；\(result.projectFailures.count) 个项目需要手动协调" }
-            return message
-        }
+        _ = await perform { try await service.applyUpdate(sourceID: sourceID) }
     }
 
     func projectSnapshot(_ project: URL) async throws -> ProjectSnapshot {
-        let paths = paths
-        return try await Task.detached {
-            let store = RouterStateStore(paths: paths)
-            let manifest = try ProjectManifestStore().load(from: project)
-            let reconciliation = try ProjectService(store: store).reconcile(project: project)
-            return ProjectSnapshot(manifest: manifest, reconciliation: reconciliation)
-        }.value
+        try await service.projectSnapshot(project)
     }
 
     func referencingProjects(skillName: SkillName) async -> [String] {
-        let paths = paths
-        return await Task.detached {
-            let store = RouterStateStore(paths: paths)
-            let service = ProjectService(store: store)
-            guard let projects = try? service.registeredProjects() else { return [] }
-            return projects.compactMap { project in
-                let url = URL(fileURLWithPath: project.path, isDirectory: true)
-                guard let manifest = try? ProjectManifestStore().load(from: url),
-                      manifest.skills[skillName.rawValue] != nil else { return nil }
-                return project.path
-            }.sorted()
-        }.value
+        await service.referencingProjects(skillName: skillName)
     }
 
     func exportArtifact(names: Set<SkillName>?, destination: URL) async -> Bool {
-        let paths = paths
-        return await runBool {
-            try ArtifactService(store: RouterStateStore(paths: paths)).export(skillNames: names, to: destination)
-        } message: { "已导出 \($0.skillNames.count) 个 Skill：\($0.destination.path)" }
+        await perform { try await service.exportArtifact(names: names, destination: destination) }
     }
 
     func inspectArtifact(_ archive: URL) async throws -> ArtifactManifest {
-        let paths = paths
-        return try await Task.detached {
-            try ArtifactService(store: RouterStateStore(paths: paths)).inspect(archive)
-        }.value
+        try await service.inspectArtifact(archive)
     }
 
     func importArtifact(
@@ -305,73 +370,43 @@ final class AppModel: ObservableObject {
         suiteRenames: [SuiteName: SuiteName],
         skippedSuites: Set<SuiteName>
     ) async -> Bool {
-        let paths = paths
-        return await runBool {
-            try ArtifactService(store: RouterStateStore(paths: paths)).importArtifact(
-                from: archive,
-                options: ArtifactImportOptions(
-                    skillConflicts: skillConflicts,
-                    suiteRenames: suiteRenames,
-                    skippedSuites: skippedSuites
-                )
+        await perform {
+            try await service.importArtifact(
+                archive,
+                skillConflicts: skillConflicts,
+                suiteRenames: suiteRenames,
+                skippedSuites: skippedSuites
             )
-        } message: { "已从制品导入 \($0.imported.count) 个 Skill" }
+        }
     }
 
     func repairSystemSkill() async {
         await bootstrap()
+        if errorMessage == nil { showTransientNotice("CLI 和系统 Skill 已检查") }
     }
 
     func setSystemSkill(enabled: Bool, agent: String) async {
-        let paths = paths
-        let home = homeDirectory
-        _ = await runBool {
-            let result = try SystemSkillInstaller(paths: paths, homeDirectory: home)
-                .setEnabled(enabled, agent: agent)
-            try RouterStateStore(paths: paths).withExclusiveState { state in
-                switch agent {
-                case "codex": state.systemSkill.codexEnabled = enabled
-                case "claude-code": state.systemSkill.claudeCodeEnabled = enabled
-                default: break
-                }
-            }
-            return result
-        } message: { result in
-            "\(result.agent) 系统 Skill：\(Self.systemSkillStatusText(result.status))"
-        }
+        _ = await perform { try await service.setSystemSkill(enabled: enabled, agent: agent) }
     }
 
     func openInFinder(_ url: URL) {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
-    private func run<T: Sendable>(
-        _ successMessage: String,
-        operation: @escaping @Sendable () throws -> T,
-        assign: @escaping (T) -> Void
-    ) async {
-        isBusy = true
-        errorMessage = nil
-        defer { isBusy = false }
-        do {
-            let value = try await Task.detached(operation: operation).value
-            assign(value)
-            showTransientNotice(successMessage)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+    func presentError(_ error: Error) {
+        errorMessage = error.localizedDescription
     }
 
-    private func runBool<T: Sendable>(
-        operation: @escaping @Sendable () throws -> T,
-        message: @escaping (T) -> String
-    ) async -> Bool {
+    func showNotice(_ text: String) {
+        showTransientNotice(text)
+    }
+
+    private func perform(_ operation: () async throws -> String) async -> Bool {
         isBusy = true
         errorMessage = nil
         defer { isBusy = false }
         do {
-            let value = try await Task.detached(operation: operation).value
-            showTransientNotice(message(value))
+            showTransientNotice(try await operation())
             await refresh(showProgress: false)
             return true
         } catch {
@@ -382,31 +417,9 @@ final class AppModel: ObservableObject {
 
     private func showTransientNotice(_ message: String) {
         notice = message
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(4))
-            if notice == message { notice = nil }
+            if self?.notice == message { self?.notice = nil }
         }
-    }
-
-    private static func systemSkillStatusText(_ status: SystemSkillEntryStatus) -> String {
-        switch status {
-        case .installed: "已安装"
-        case .alreadyCorrect: "状态正确"
-        case .repaired: "已修复"
-        case .conflict: "存在不受管冲突"
-        case .disabled: "已停用"
-        }
-    }
-
-    private func reconcileRegisteredProjects() async {
-        let paths = paths
-        await Task.detached {
-            let store = RouterStateStore(paths: paths)
-            let service = ProjectService(store: store)
-            guard let projects = try? service.registeredProjects() else { return }
-            for project in projects {
-                _ = try? service.reconcile(project: URL(fileURLWithPath: project.path, isDirectory: true))
-            }
-        }.value
     }
 }

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 struct SkillsPage: View {
     @Environment(AppStore.self) private var app
+    @State private var showingImportPopover = false
 
     var body: some View {
         @Bindable var skills = app.skills
@@ -13,11 +14,18 @@ struct SkillsPage: View {
             VStack(spacing: 0) {
                 AppPageHeader(
                     title: "技能",
-                    description: "管理中央库中的 Skill，并将其分发到已注册项目。"
+                    description: "统一管理本机 Skill，并按需分发到已注册项目。"
                 ) {
-                    AppIconAction(systemImage: "network", label: "从 GitHub 导入") { app.modal = .gitImport }
-                    AppIconAction(systemImage: "folder", label: "从本地目录导入", action: chooseLocalDirectory)
-                    AppIconAction(systemImage: "doc", label: "从 Skill Router 文件导入", action: chooseArtifact)
+                    AppIconAction(systemImage: "plus", label: "导入技能") {
+                        showingImportPopover.toggle()
+                    }
+                    .popover(isPresented: $showingImportPopover, arrowEdge: .top) {
+                        SkillImportPopover(
+                            importFromGitHub: { beginImport { app.modal = .gitImport } },
+                            importFromLocalDirectory: { beginImport(chooseLocalDirectory) },
+                            importFromArtifact: { beginImport(chooseArtifact) }
+                        )
+                    }
                 }
 
                 HStack(spacing: 10) {
@@ -32,7 +40,7 @@ struct SkillsPage: View {
                 .padding(.top, 19)
                 .padding(.bottom, 10)
 
-                AppSectionHeader("中央库技能", count: skills.filteredItems.count)
+                AppSectionHeader("技能库", count: skills.filteredItems.count)
 
                 AppPanel {
                     if skills.filteredItems.isEmpty {
@@ -50,16 +58,16 @@ struct SkillsPage: View {
                             } content: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.name.rawValue)
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.system(size: AppTypography.body, weight: .semibold))
                                         .lineLimit(1)
                                     Text(item.description)
-                                        .font(.system(size: 11))
+                                        .font(.system(size: AppTypography.secondary))
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
                             } trailing: {
                                 Text(item.sourceLabel)
-                                    .font(.system(size: 10))
+                                    .font(.system(size: AppTypography.caption))
                                     .foregroundStyle(.tertiary)
                             }
                             if index < skills.filteredItems.count - 1 { Divider().padding(.leading, 50) }
@@ -69,7 +77,7 @@ struct SkillsPage: View {
             }
             .frame(maxWidth: 860)
             .padding(.horizontal, 32)
-            .padding(.top, 72)
+            .padding(.top, AppTheme.pageTopInset)
             .padding(.bottom, 34)
             .frame(maxWidth: .infinity)
         }
@@ -90,6 +98,52 @@ struct SkillsPage: View {
         panel.allowsMultipleSelection = false
         panel.prompt = "选择制品"
         if panel.runModal() == .OK, let url = panel.url { app.modal = .artifactImport(url) }
+    }
+
+    private func beginImport(_ action: () -> Void) {
+        showingImportPopover = false
+        action()
+    }
+}
+
+private struct SkillImportPopover: View {
+    let importFromGitHub: () -> Void
+    let importFromLocalDirectory: () -> Void
+    let importFromArtifact: () -> Void
+
+    var body: some View {
+        VStack(spacing: 2) {
+            SkillImportOption(title: "从 Github 导入技能", action: importFromGitHub)
+            SkillImportOption(title: "从本地目录导入技能", action: importFromLocalDirectory)
+            SkillImportOption(title: "从 Skill Router 制品导入技能", action: importFromArtifact)
+        }
+        .padding(6)
+        .frame(width: 220)
+    }
+}
+
+private struct SkillImportOption: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovering = false
+
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: AppTypography.body))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(
+                    isHovering ? AppTheme.hover(colorScheme) : .clear,
+                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
     }
 }
 

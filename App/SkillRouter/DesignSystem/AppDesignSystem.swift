@@ -2,20 +2,22 @@ import SwiftUI
 
 enum AppTheme {
     static let sidebarWidth: CGFloat = 208
+    static let sidebarTopInset: CGFloat = 45
+    static let pageTopInset: CGFloat = 44
     static let rowHeight: CGFloat = 66
     static let windowRadius: CGFloat = 12
     static let panelRadius: CGFloat = 10
     static let controlRadius: CGFloat = 8
 
-    static func stage(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.105 : 0.82) }
-    static func sidebar(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.27 : 0.94) }
-    static func workspace(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.16 : 0.985) }
-    static func surface(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.21 : 0.995) }
-    static func mutedSurface(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.245 : 0.96) }
-    static func hover(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.255 : 0.945) }
-    static func selected(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.30 : 0.91) }
-    static func border(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.30 : 0.88) }
-    static func strongBorder(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.39 : 0.80) }
+    static func stage(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.06 : 0.82) }
+    static func sidebar(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.22 : 0.94) }
+    static func workspace(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.075 : 0.985) }
+    static func surface(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.17 : 0.995) }
+    static func mutedSurface(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.19 : 0.96) }
+    static func hover(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.235 : 0.945) }
+    static func selected(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.265 : 0.91) }
+    static func border(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.255 : 0.88) }
+    static func strongBorder(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.35 : 0.80) }
     static func primary(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.93 : 0.20) }
     static func primaryInk(_ scheme: ColorScheme) -> Color { gray(scheme == .dark ? 0.16 : 0.98) }
     static func positive(_ scheme: ColorScheme) -> Color {
@@ -36,6 +38,15 @@ enum AppTheme {
     }
 }
 
+enum AppTypography {
+    static let pageTitle: CGFloat = 28
+    static let emphasis: CGFloat = 14
+    static let body: CGFloat = 13
+    static let secondary: CGFloat = 12
+    static let caption: CGFloat = 11
+    static let micro: CGFloat = 10
+}
+
 struct AppPageHeader<Actions: View>: View {
     let title: String
     let description: String
@@ -44,11 +55,11 @@ struct AppPageHeader<Actions: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(size: 25, weight: .bold))
+                .font(.system(size: AppTypography.pageTitle, weight: .bold))
                 .tracking(-0.8)
             HStack(alignment: .center, spacing: 20) {
                 Text(description)
-                    .font(.system(size: 12))
+                    .font(.system(size: AppTypography.body))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -89,7 +100,7 @@ struct AppSearchField: View {
                 .foregroundStyle(.tertiary)
             TextField(placeholder, text: $text)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
+                .font(.system(size: AppTypography.body))
             if !text.isEmpty {
                 Button { text = "" } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -116,7 +127,7 @@ struct AppSegmentedPicker<Value: Hashable>: View {
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                 Button(option.1) { selection = option.0 }
                     .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: selection == option.0 ? .semibold : .regular))
+                    .font(.system(size: AppTypography.secondary, weight: selection == option.0 ? .semibold : .regular))
                     .foregroundStyle(selection == option.0 ? Color.primary : Color.secondary)
                     .frame(minWidth: 42, minHeight: 27)
                     .padding(.horizontal, 4)
@@ -150,10 +161,10 @@ struct AppSectionHeader: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            Text(title).font(.system(size: 12, weight: .semibold))
-            if let count { Text("\(count) 项").font(.system(size: 11)).foregroundStyle(.tertiary) }
+            Text(title).font(.system(size: AppTypography.body, weight: .semibold))
+            if let count { Text("\(count) 项").font(.system(size: AppTypography.secondary)).foregroundStyle(.tertiary) }
             Spacer()
-            if let trailing { Text(trailing).font(.system(size: 11)).foregroundStyle(.tertiary) }
+            if let trailing { Text(trailing).font(.system(size: AppTypography.secondary)).foregroundStyle(.tertiary) }
         }
         .frame(minHeight: 30)
         .padding(.horizontal, 3)
@@ -235,7 +246,7 @@ struct AppStatusPill: View {
             if let systemImage { Image(systemName: systemImage) }
             Text(text)
         }
-        .font(.system(size: 10, weight: .medium))
+        .font(.system(size: AppTypography.caption, weight: .medium))
         .foregroundStyle(foreground)
         .padding(.horizontal, tone == .neutral || tone == .good ? 0 : 7)
         .padding(.vertical, tone == .neutral || tone == .good ? 0 : 3)
@@ -268,8 +279,8 @@ struct AppEmptyState: View {
     var body: some View {
         VStack(spacing: 9) {
             Image(systemName: systemImage).font(.system(size: 24, weight: .light)).foregroundStyle(.tertiary)
-            Text(title).font(.system(size: 13, weight: .semibold))
-            Text(description).font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text(title).font(.system(size: AppTypography.emphasis, weight: .semibold))
+            Text(description).font(.system(size: AppTypography.secondary)).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, minHeight: 180)
         .padding(24)
@@ -338,7 +349,7 @@ struct AppFormSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+            Text(title).font(.system(size: AppTypography.secondary, weight: .semibold)).foregroundStyle(.secondary)
             VStack(spacing: 0) { content() }
                 .background(AppTheme.mutedSurface(colorScheme))
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
@@ -357,7 +368,7 @@ struct AppLabeledRow<Value: View>: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 14) {
             Text(label)
-                .font(.system(size: 10))
+                .font(.system(size: AppTypography.caption))
                 .foregroundStyle(.tertiary)
                 .frame(width: 104, alignment: .leading)
             value().frame(maxWidth: .infinity, alignment: .leading)
@@ -378,7 +389,7 @@ struct AppInlineNotice: View {
             Image(systemName: tone == .danger ? "xmark.octagon" : "exclamationmark.triangle")
             Text(text).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .font(.system(size: 10))
+        .font(.system(size: AppTypography.caption))
         .foregroundStyle(tone == .danger ? AppTheme.danger(colorScheme) : AppTheme.warning(colorScheme))
         .padding(11)
         .background(
@@ -399,7 +410,7 @@ struct AppToast: View {
 
     var body: some View {
         Label(text, systemImage: "checkmark.circle")
-            .font(.system(size: 12, weight: .medium))
+            .font(.system(size: AppTypography.body, weight: .medium))
             .padding(.horizontal, 14)
             .frame(minHeight: 38)
             .background(.regularMaterial, in: Capsule())
@@ -417,7 +428,7 @@ struct AppBusyOverlay: View {
             Color.black.opacity(0.12).ignoresSafeArea()
             HStack(spacing: 10) {
                 ProgressView().controlSize(.small)
-                Text("正在处理…").font(.system(size: 12, weight: .medium))
+                Text("正在处理…").font(.system(size: AppTypography.body, weight: .medium))
             }
             .padding(.horizontal, 18)
             .frame(minHeight: 44)
@@ -437,7 +448,7 @@ struct AppPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: AppTypography.body, weight: .semibold))
             .padding(.horizontal, 12)
             .frame(minHeight: 31)
             .foregroundStyle(AppTheme.primaryInk(colorScheme))
@@ -452,7 +463,7 @@ struct AppSecondaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .medium))
+            .font(.system(size: AppTypography.body, weight: .medium))
             .padding(.horizontal, 11)
             .frame(minHeight: 31)
             .background(configuration.isPressed ? AppTheme.hover(colorScheme) : AppTheme.surface(colorScheme))
@@ -492,8 +503,8 @@ private struct AppControlBackground: View {
 #if DEBUG
 #Preview("公共组件 · 浅色") {
     VStack(spacing: 16) {
-        AppPageHeader(title: "技能", description: "管理中央库中的 Skill，并将其分发到已注册项目。") {
-            AppIconAction(systemImage: "folder", label: "从本地导入") {}
+        AppPageHeader(title: "技能", description: "统一管理本机 Skill，并按需分发到已注册项目。") {
+            AppIconAction(systemImage: "plus", label: "导入技能") {}
         }
         AppSearchField(placeholder: "搜索技能…", text: .constant(""))
         AppPanel {
@@ -501,9 +512,9 @@ private struct AppControlBackground: View {
                 AppIconBadge(systemImage: "shippingbox")
             } content: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("baoyu-design").font(.system(size: 12, weight: .semibold))
+                    Text("baoyu-design").font(.system(size: AppTypography.body, weight: .semibold))
                     Text("用于验证长文本截断与统一列表密度的示例说明。")
-                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                        .font(.system(size: AppTypography.secondary)).foregroundStyle(.secondary).lineLimit(1)
                 }
             } trailing: {
                 AppStatusPill(text: "本地 Skill", tone: .neutral)

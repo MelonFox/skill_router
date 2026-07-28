@@ -29,16 +29,16 @@ struct SettingsPage: View {
                     if settings.gitSources.isEmpty {
                         AppLabeledRow(label: "Git 来源") {
                             Text("当前没有 Git 来源；本地 Skill 不检查更新。")
-                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                                .font(.system(size: AppTypography.secondary)).foregroundStyle(.secondary)
                         }
                     } else {
                         ForEach(Array(settings.gitSources.enumerated()), id: \.element.id) { index, source in
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(source.suiteName?.rawValue ?? source.selectedSkills.first?.rawValue ?? "Git 来源")
-                                        .font(.system(size: 11, weight: .semibold))
+                                        .font(.system(size: AppTypography.body, weight: .semibold))
                                     Text(source.remoteURL)
-                                        .font(.system(size: 9, design: .monospaced))
+                                        .font(.system(size: AppTypography.micro, design: .monospaced))
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
@@ -58,7 +58,7 @@ struct SettingsPage: View {
                     Divider().padding(.leading, 14)
                     HStack {
                         Text("检查只读取来源状态，不会修改中央库。")
-                            .font(.system(size: 10)).foregroundStyle(.tertiary)
+                            .font(.system(size: AppTypography.caption)).foregroundStyle(.tertiary)
                         Spacer()
                         Button("检查更新", systemImage: "arrow.clockwise") {
                             Task { await app.checkUpdates(force: true) }
@@ -83,17 +83,17 @@ struct SettingsPage: View {
                     Divider().padding(.leading, 14)
                     AppLabeledRow(label: "CLI") {
                         Text(app.paths.binDirectory.appendingPathComponent("skill-router").path)
-                            .font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                            .font(.system(size: AppTypography.micro, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                     Divider().padding(.leading, 14)
                     AppLabeledRow(label: "系统 Skill") {
                         Text(app.paths.systemSkillsDirectory.appendingPathComponent("skill-router").path)
-                            .font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                            .font(.system(size: AppTypography.micro, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                     Divider().padding(.leading, 14)
                     HStack {
                         Text("系统 Skill 只调用稳定 CLI，不直接编辑项目文件。")
-                            .font(.system(size: 10)).foregroundStyle(.tertiary)
+                            .font(.system(size: AppTypography.caption)).foregroundStyle(.tertiary)
                         Spacer()
                         Button("修复入口", systemImage: "wrench.and.screwdriver") {
                             Task { await app.repairSystemSkill() }
@@ -106,12 +106,12 @@ struct SettingsPage: View {
                 SettingsSection(title: "中央库") {
                     AppLabeledRow(label: "位置") {
                         Text(app.paths.root.path)
-                            .font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                            .font(.system(size: AppTypography.micro, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
                     }
                     Divider().padding(.leading, 14)
                     HStack(spacing: 8) {
                         Text("制品不包含项目路径、书签、项目链接或 Git 缓存。")
-                            .font(.system(size: 10)).foregroundStyle(.tertiary)
+                            .font(.system(size: AppTypography.caption)).foregroundStyle(.tertiary)
                         Spacer()
                         Button("Finder", systemImage: "folder") { app.openInFinder(app.paths.root) }
                             .buttonStyle(AppSecondaryButtonStyle())
@@ -123,17 +123,17 @@ struct SettingsPage: View {
                 }
 
                 SettingsSection(title: "关于") {
-                    AppLabeledRow(label: "版本") { Text("0.1.0-dev").font(.system(size: 11, weight: .medium)) }
+                    AppLabeledRow(label: "版本") { Text("0.1.0-dev").font(.system(size: AppTypography.secondary, weight: .medium)) }
                     Divider().padding(.leading, 14)
                     AppLabeledRow(label: "验证边界") {
                         Text("自动测试证明文件系统分发结构，不证明 Codex 或 Claude Code 已真实加载 Skill。")
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                            .font(.system(size: AppTypography.caption)).foregroundStyle(.secondary)
                     }
                 }
             }
             .frame(maxWidth: 860)
             .padding(.horizontal, 32)
-            .padding(.top, 72)
+            .padding(.top, AppTheme.pageTopInset)
             .padding(.bottom, 34)
             .frame(maxWidth: .infinity)
         }

@@ -14,7 +14,7 @@ struct ProjectsPage: View {
                     title: "项目",
                     description: "管理已注册项目，查看 Skill 的分发与协调状态。"
                 ) {
-                    AppIconAction(systemImage: "folder.badge.plus", label: "加入项目", action: chooseProject)
+                    AppIconAction(systemImage: "plus", label: "加入本机项目", action: chooseProject)
                 }
 
                 AppSearchField(placeholder: "搜索项目…", text: $projects.searchText)
@@ -38,9 +38,9 @@ struct ProjectsPage: View {
                                 AppIconBadge(systemImage: "rectangle.stack")
                             } content: {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(project.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                                    Text(project.name).font(.system(size: AppTypography.body, weight: .semibold)).lineLimit(1)
                                     Text(project.path)
-                                        .font(.system(size: 10, design: .monospaced))
+                                        .font(.system(size: AppTypography.caption, design: .monospaced))
                                         .foregroundStyle(.tertiary)
                                         .lineLimit(1)
                                 }
@@ -49,7 +49,7 @@ struct ProjectsPage: View {
                                     AppStatusPill(text: "\(project.conflictCount) 项冲突", tone: .warning)
                                 } else {
                                     Text("\(project.skillCount) 个 Skill")
-                                        .font(.system(size: 10))
+                                        .font(.system(size: AppTypography.caption))
                                         .foregroundStyle(.tertiary)
                                 }
                             }
@@ -60,7 +60,7 @@ struct ProjectsPage: View {
             }
             .frame(maxWidth: 860)
             .padding(.horizontal, 32)
-            .padding(.top, 72)
+            .padding(.top, AppTheme.pageTopInset)
             .padding(.bottom, 34)
             .frame(maxWidth: .infinity)
         }

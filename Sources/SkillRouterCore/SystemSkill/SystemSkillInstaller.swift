@@ -62,11 +62,7 @@ public struct SystemSkillInstaller {
         try paths.createInfrastructureDirectories(fileManager: fileManager)
         let centralSkill = paths.systemSkillsDirectory.appendingPathComponent("skill-router", isDirectory: true)
         try fileManager.createDirectory(at: centralSkill, withIntermediateDirectories: true)
-        guard let resource = Bundle.module.url(
-            forResource: "SKILL",
-            withExtension: "md",
-            subdirectory: "Resources/system-skills/skill-router"
-        ) else {
+        guard let resource = systemSkillResourceURL() else {
             throw SkillRouterError.io("内置系统 Skill 资源缺失")
         }
         try writer.write(Data(contentsOf: resource), to: centralSkill.appendingPathComponent("SKILL.md"))
@@ -90,6 +86,21 @@ public struct SystemSkillInstaller {
             cliPath: cliDestination.path,
             systemSkillPath: centralSkill.path,
             entries: entries
+        )
+    }
+
+    private func systemSkillResourceURL() -> URL? {
+        let resourceBundle = Bundle.main.resourceURL
+            .map { $0.appendingPathComponent("SkillRouter_SkillRouterCore.bundle", isDirectory: true) }
+            .flatMap(Bundle.init(url:))
+        return resourceBundle?.url(
+            forResource: "SKILL",
+            withExtension: "md",
+            subdirectory: "Resources/system-skills/skill-router"
+        ) ?? Bundle.module.url(
+            forResource: "SKILL",
+            withExtension: "md",
+            subdirectory: "Resources/system-skills/skill-router"
         )
     }
 

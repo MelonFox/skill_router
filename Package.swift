@@ -32,7 +32,8 @@ let package = Package(
         .executableTarget(
             name: "SkillRouterApp",
             dependencies: ["SkillRouterCore"],
-            path: "App/SkillRouter"
+            path: "App/SkillRouter",
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "SkillRouterCoreTests",

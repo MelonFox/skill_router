@@ -5,6 +5,14 @@ import SwiftUI
 private final class SkillRouterAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        let resourceBundle = Bundle.main.resourceURL
+            .map { $0.appendingPathComponent("SkillRouter_SkillRouterApp.bundle", isDirectory: true) }
+            .flatMap(Bundle.init(url:))
+        if let iconURL = resourceBundle?.url(forResource: "AppIcon", withExtension: "png")
+            ?? Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+           let icon = NSImage(contentsOf: iconURL) {
+            NSApp.applicationIconImage = icon
+        }
         DispatchQueue.main.async {
             SkillRouterAppActivation.bringToFront()
         }

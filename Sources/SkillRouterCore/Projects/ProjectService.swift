@@ -58,12 +58,11 @@ public final class ProjectService: @unchecked Sendable {
             if let existing = state.projects.first(where: { $0.path == canonical.path }) {
                 return existing
             }
-            let bookmark = try? canonical.bookmarkData(
-                options: .minimalBookmark,
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
+            let record = RegisteredProjectRecord(
+                path: canonical.path,
+                bookmarkData: bookmarkData(for: canonical),
+                registeredAt: now
             )
-            let record = RegisteredProjectRecord(path: canonical.path, bookmarkData: bookmark, registeredAt: now)
             state.projects.append(record)
             return record
         }
@@ -78,6 +77,7 @@ public final class ProjectService: @unchecked Sendable {
 
     public func registeredProjects() throws -> [RegisteredProjectRecord] {
         try store.withExclusiveState { state in
+            #if os(macOS)
             for index in state.projects.indices {
                 guard let bookmarkData = state.projects[index].bookmarkData else { continue }
                 var isStale = false
@@ -90,19 +90,15 @@ public final class ProjectService: @unchecked Sendable {
                 isDirectory(resolved) else { continue }
 
                 if resolved.path != state.projects[index].path || isStale {
-                    let refreshedBookmark = try? resolved.bookmarkData(
-                        options: .minimalBookmark,
-                        includingResourceValuesForKeys: nil,
-                        relativeTo: nil
-                    )
                     state.projects[index] = RegisteredProjectRecord(
                         path: resolved.path,
-                        bookmarkData: refreshedBookmark ?? bookmarkData,
+                        bookmarkData: self.bookmarkData(for: resolved) ?? bookmarkData,
                         registeredAt: state.projects[index].registeredAt
                     )
                 }
             }
             state.normalize()
+            #endif
             return state.projects
         }
     }
@@ -124,12 +120,11 @@ public final class ProjectService: @unchecked Sendable {
         let canonical = try canonicalProject(project)
         return try store.withExclusiveState { state in
             if !state.projects.contains(where: { $0.path == canonical.path }) {
-                let bookmark = try? canonical.bookmarkData(
-                    options: .minimalBookmark,
-                    includingResourceValuesForKeys: nil,
-                    relativeTo: nil
-                )
-                state.projects.append(RegisteredProjectRecord(path: canonical.path, bookmarkData: bookmark, registeredAt: Date()))
+                state.projects.append(RegisteredProjectRecord(
+                    path: canonical.path,
+                    bookmarkData: bookmarkData(for: canonical),
+                    registeredAt: Date()
+                ))
             }
 
             let centralNames = Set(state.skills.map(\.name))
@@ -227,6 +222,18 @@ public final class ProjectService: @unchecked Sendable {
         updated += missing.joined(separator: "\n") + "\n"
         try AtomicFileWriter().write(Data(updated.utf8), to: gitIgnore)
         return missing
+    }
+
+    private func bookmarkData(for url: URL) -> Data? {
+        #if os(macOS)
+        return try? url.bookmarkData(
+            options: .minimalBookmark,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        #else
+        return nil
+        #endif
     }
 
     private func canonicalProject(_ project: URL) throws -> URL {

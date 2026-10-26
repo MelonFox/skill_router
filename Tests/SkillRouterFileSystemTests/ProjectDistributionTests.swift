@@ -123,6 +123,7 @@ struct ProjectDistributionTests {
         }
     }
 
+    #if os(macOS)
     @Test
     func resolvesARegisteredProjectAfterItMoves() throws {
         try withFixture { fixture in
@@ -139,6 +140,7 @@ struct ProjectDistributionTests {
             #expect(stored.first?.path == moved.path)
         }
     }
+    #endif
 
     private func withFixture(_ body: (Fixture) throws -> Void) throws {
         let root = FileManager.default.temporaryDirectory
